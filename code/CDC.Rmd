@@ -1,0 +1,143 @@
+---
+title: "CDC"
+author: "FENG LIN"
+date: "2023-09-30"
+output: html_document
+---
+
+```{r}
+library(dplyr)
+
+data1 <- read_csv("~/Desktop/CDC/1.csv")
+meanpop <- aggregate(Popularity~Year, data=data1, FUN = mean)
+plot(meanpop$Year,meanpop$Popularity)
+
+meanpop2 <- aggregate(Popularity~Artist, data=data1, FUN = mean)
+plot(meanpop2$Popularity)
+
+data2 <- filter(data1, Popularity >= 70)
+#plot(data2$Year, data2$Popularity)
+meanpop3 <- aggregate(popularity~Year, data=songs_2009, FUN = mean)
+plot(meanpop3$Year,meanpop3$popularity)
+abline(lm(meanpop3$popularity~meanpop3$Year), col = "red")
+```
+
+```{r}
+data0 <- read.csv("~/Desktop/CDC/spotify_new/spotify_tracks_2000.csv")
+data1 <- read.csv("~/Desktop/CDC/spotify_new/spotify_tracks_2001.csv")
+data2 <- read.csv("~/Desktop/CDC/spotify_new/spotify_tracks_2002.csv")
+data3 <- read.csv("~/Desktop/CDC/spotify_new/spotify_tracks_2003.csv")
+data4 <- read.csv("~/Desktop/CDC/spotify_new/spotify_tracks_2004.csv")
+data5 <- read.csv("~/Desktop/CDC/spotify_new/spotify_tracks_2005.csv")
+data6 <- read.csv("~/Desktop/CDC/spotify_new/spotify_tracks_2006.csv")
+data7 <- read.csv("~/Desktop/CDC/spotify_new/spotify_tracks_2007.csv")
+data8 <- read.csv("~/Desktop/CDC/spotify_new/spotify_tracks_2008.csv")
+data9 <- read.csv("~/Desktop/CDC/spotify_new/spotify_tracks_2009.csv")
+data10 <- read.csv("~/Desktop/CDC/spotify_new/spotify_tracks_2010.csv")
+
+songs_2009<-rbind(data0,data1,data2,data3,data4,data5,data6,data7,data8,data9,data10)
+
+
+
+
+rm(data0,data1,data2,data3,data4,data5,data6,data7,data8,data9,data10)
+
+#Add a new categorical variable
+songs_2009$popularity = ifelse(songs_2009$popularity>=60, 1, 0)
+set.seed(600)
+flop <- filter(songs_2009, songs_2009$popularity==0)
+indices <- sample(1:nrow(flop), size = 3975)
+flop <- flop[indices,]
+
+hit <- filter(songs_2009, songs_2009$popularity==1)
+
+songs_2009 <- rbind(flop, hit)
+
+#TEST & TRAIN
+set.seed(555)
+test_size = floor(nrow(songs_2009) / 5) 
+row_indices <- sample(1:nrow(songs_2009), size = test_size)
+
+test <- songs_2009[row_indices,-4]
+train <- songs_2009[-row_indices,-4]
+
+#Selection
+'
+forward_mod <- regsubsets(popularity ~ ., data = train, method = "forward")
+summary <- summary(forward_mod)
+which.min(summary$bic)
+which.max(summary$adjr2)
+which.min(summary$cp)
+
+print(coef(forward_mod,2))
+print(coef(forward_mod,4))
+print(coef(forward_mod,2))
+
+new_train <- select(train, popularity, energy, instrumentalness, speechiness, valence)
+new_test <- select(test, popularity, energy, instrumentalness, speechiness, valence)
+'
+
+#logistic
+logit_model <- glm(popularity ~ ., data = train, family = "binomial")
+logit_pred <- 1/(1+exp(-predict(logit_model, newdata = test)))
+logit_prediction <- ifelse(logit_pred >= 0.5, 1, 0)
+logit_accuracy = sum(logit_prediction == test$popularity)/1590
+logit_accuracy
+
+#NB
+nb_model <- naiveBayes(popularity~., data = train)
+nb_pred <- predict(nb_model, newdata = test)
+nb_accuracy = sum(nb_pred == test$popularity)/1590
+nb_accuracy
+
+#random forest for numeric
+'
+test <- songs_2009[row_indices,]
+train <- songs_2009[-row_indices,]
+rf_model <- randomForest(x = train[,-1], y = train$popularity, ntree = 500, mtry = 4)
+rf_preds <- predict(rf_model, newdata = test)
+MSE = mean((rf_preds-test$popularity)^2)
+MSE
+
+#random forest for categorical
+rf_model <- randomForest(x = train, y = train$Popularity, ntree = 500, mtry = 4)
+rf_preds <- predict(rf_model, newdata = test)
+rf_predicted <- ifelse(rf_preds >= 0.5, 1, 0)
+rf_accuracy = sum(rf_predicted == test$Popularity)/130
+rf_accuracy
+'
+
+#SVM
+svmModel = svm(formula = popularity~ ., data = train, type = 'C-classification', kernal = 'radial basis', cost = 0.1)
+svm_prediction = predict(svmModel, newdata = test)
+svm_accuracy = sum(svm_prediction == test$Popularity)/130
+svm_accuracy
+table(test$Popularity, svm_prediction)
+```
+```{r}
+library(corrplot)
+library(tidyverse)
+
+trainx_matrix <- select(songs_2009, -Year, -Artist.Name.s., -Track.Name, -explicit, -release_date)
+trainx <- trainx_matrix
+
+res <- cor(trainx)
+round(res, 2)
+
+corrplot(res, type = "upper", order = "hclust", 
+         tl.col = "black", tl.srt = 45)
+```
+
+```{r}
+library(corrplot)
+
+trainx_matrix <- select(data, -Year, -'Track Name', -'Artist Name(s)', -explicit, -release_date)
+trainx <- trainx_matrix
+
+res <- cor(trainx)
+round(res, 2)
+
+corrplot(res, type = "upper", order = "hclust", 
+         tl.col = "black", tl.srt = 45)
+```
+
